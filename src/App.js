@@ -36,10 +36,30 @@ const TataCapitalChatbot = () => {
     conversionRate: '78%',
     activeUsers: 34
   });
+  const [showConsole, setShowConsole] = useState(true);
+  const [agentLogs, setAgentLogs] = useState([
+    { time: '14:20:15', agent: 'System', action: 'Master Agent initialized', status: 'success' }
+  ]);
   const messagesEndRef = useRef(null);
+  const consoleEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const scrollConsoleToBottom = () => {
+    consoleEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const addAgentLog = (agent, action, status = 'info') => {
+    const newLog = {
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      agent,
+      action,
+      status
+    };
+    setAgentLogs(prev => [...prev, newLog]);
+    setTimeout(scrollConsoleToBottom, 100);
   };
 
   useEffect(() => {
@@ -200,8 +220,13 @@ const TataCapitalChatbot = () => {
     // Step 0: Loan Amount
     if (currentStep === 0 && userMessage.match(/\d+/)) {
       const amount = userMessage.match(/\d+/)[0];
+      addAgentLog('Master Agent', '📥 Received loan inquiry request', 'info');
+      addAgentLog('Master Agent', `💰 Loan amount detected: ₹${parseInt(amount).toLocaleString('en-IN')}`, 'info');
+      addAgentLog('Master Agent', '🔀 Routing to Sales Agent for qualification', 'routing');
       setLoanData(prev => ({ ...prev, amount }));
       setActiveAgent('Sales Agent');
+      addAgentLog('Sales Agent', '✅ Agent activated - Qualifying customer', 'success');
+      addAgentLog('Sales Agent', '📋 Requesting tenure information', 'info');
       addMessage(`Great! You're looking for ₹${parseInt(amount).toLocaleString('en-IN')}. What tenure would you prefer? (e.g., 12, 24, 36 months)`, 'bot', 'Sales Agent');
       setCurrentStep(1);
     }
@@ -210,6 +235,10 @@ const TataCapitalChatbot = () => {
       const tenure = userMessage.match(/\d+/)[0];
       setLoanData(prev => ({ ...prev, tenure }));
       const emi = Math.round((parseInt(loanData.amount) * 1.1) / parseInt(tenure));
+      addAgentLog('Sales Agent', `📅 Tenure selected: ${tenure} months`, 'info');
+      addAgentLog('Sales Agent', `🧮 EMI calculated: ₹${emi.toLocaleString('en-IN')}/month`, 'success');
+      addAgentLog('Sales Agent', '✅ Qualification complete - Customer ready for KYC', 'success');
+      addAgentLog('Master Agent', '🔀 Preparing handoff to Verification Agent', 'routing');
       setActiveAgent('Sales Agent');
       addMessage(`Perfect! For ₹${parseInt(loanData.amount).toLocaleString('en-IN')} over ${tenure} months at 10.5% interest:\n\n💰 EMI: ₹${emi.toLocaleString('en-IN')}/month\n📊 Total Amount: ₹${(emi * tenure).toLocaleString('en-IN')}\n\nShall we proceed with KYC verification?`, 'bot', 'Sales Agent');
       setCurrentStep(2);
@@ -218,13 +247,18 @@ const TataCapitalChatbot = () => {
     // Step 2: Start KYC
     else if (currentStep === 2 && userMessage.toLowerCase().includes('yes')) {
       updateStepStatus(1, 'active');
+      addAgentLog('Master Agent', '🔀 Routing to Verification Agent', 'routing');
       setActiveAgent('Verification Agent');
+      addAgentLog('Verification Agent', '✅ Agent activated - Starting KYC workflow', 'success');
+      addAgentLog('Verification Agent', '📝 Initiating identity verification process', 'info');
       addMessage("Let's verify your identity. Please provide your full name:", 'bot', 'Verification Agent');
       setCurrentStep(3);
     }
     // Step 3: Name
     else if (currentStep === 3 && userMessage.length > 2) {
       setLoanData(prev => ({ ...prev, name: userMessage }));
+      addAgentLog('Verification Agent', `👤 Name captured: ${userMessage}`, 'info');
+      addAgentLog('Verification Agent', '🔍 Requesting PAN for verification', 'info');
       setActiveAgent('Verification Agent');
       addMessage(`Thank you, ${userMessage}. Please enter your PAN number:`, 'bot', 'Verification Agent');
       setCurrentStep(4);
@@ -232,6 +266,11 @@ const TataCapitalChatbot = () => {
     // Step 4: PAN
     else if (currentStep === 4 && userMessage.length >= 10) {
       setLoanData(prev => ({ ...prev, pan: userMessage.toUpperCase() }));
+      addAgentLog('Verification Agent', `🔐 PAN received: ${userMessage.toUpperCase()}`, 'info');
+      addAgentLog('Verification Agent', '🔍 Validating PAN with Income Tax database...', 'processing');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      addAgentLog('Verification Agent', '✅ PAN validated successfully', 'success');
+      addAgentLog('Verification Agent', '📝 Requesting Aadhaar number', 'info');
       setActiveAgent('Verification Agent');
       addMessage("✅ PAN verified successfully!\n\nPlease provide your Aadhaar number (12 digits):", 'bot', 'Verification Agent');
       setCurrentStep(5);
@@ -239,34 +278,66 @@ const TataCapitalChatbot = () => {
     // Step 5: Aadhaar & Credit Check
     else if (currentStep === 5 && userMessage.match(/\d{12}/)) {
       setLoanData(prev => ({ ...prev, aadhaar: userMessage }));
+      addAgentLog('Verification Agent', `🔐 Aadhaar received: ****${userMessage.slice(-4)}`, 'info');
+      addAgentLog('Verification Agent', '🔍 Validating Aadhaar with UIDAI...', 'processing');
       updateStepStatus(1, 'completed');
       updateStepStatus(2, 'active');
       setActiveAgent('Verification Agent');
       
       setIsTyping(true);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      addAgentLog('Verification Agent', '✅ Aadhaar validated successfully', 'success');
+      addAgentLog('Verification Agent', '🔗 Checking PAN-Aadhaar linkage...', 'processing');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      addAgentLog('Verification Agent', '✅ PAN-Aadhaar linkage confirmed', 'success');
+      addAgentLog('Verification Agent', '✅ KYC verification complete', 'success');
       setIsTyping(false);
       
       addMessage("✅ KYC Verification Complete!\n✅ Aadhaar validated\n✅ PAN-Aadhaar linked verified\n\n🔍 Fetching credit score from CIBIL...", 'bot', 'Verification Agent');
       
+      addAgentLog('Master Agent', '🔀 KYC complete - Routing to Underwriting Agent', 'routing');
       setActiveAgent('Underwriting Agent');
+      addAgentLog('Underwriting Agent', '✅ Agent activated - Starting credit assessment', 'success');
+      addAgentLog('Underwriting Agent', '📊 Fetching CIBIL credit score...', 'processing');
+      
       setIsTyping(true);
-      await new Promise(resolve => setTimeout(resolve, 2500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       setIsTyping(false);
       
       // Simulate credit score (random between 650-800)
       const creditScore = Math.floor(Math.random() * 150) + 650;
       setLoanData(prev => ({ ...prev, creditScore }));
       
+      addAgentLog('Underwriting Agent', `📊 CIBIL score retrieved: ${creditScore}`, 'success');
+      addAgentLog('Underwriting Agent', '🔍 Analyzing credit history...', 'processing');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      addAgentLog('Underwriting Agent', '🔍 Calculating debt-to-income ratio...', 'processing');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      addAgentLog('Underwriting Agent', '🔍 Evaluating repayment capacity...', 'processing');
+      await new Promise(resolve => setTimeout(resolve, 800));
+      
       if (creditScore >= 700) {
         // APPROVED SCENARIO
+        addAgentLog('Underwriting Agent', `✅ Credit score ${creditScore} meets threshold (≥700)`, 'success');
+        addAgentLog('Underwriting Agent', '✅ All eligibility criteria satisfied', 'success');
+        addAgentLog('Underwriting Agent', '🎯 Decision: LOAN APPROVED', 'success');
+        addAgentLog('Master Agent', '🔀 Approval confirmed - Routing to Sanction Agent', 'routing');
+        
         addMessage(`🎯 Credit Assessment Complete!\n\n📊 Credit Score: ${creditScore} (${creditScore >= 750 ? 'Excellent' : 'Good'})\n✅ Debt-to-Income Ratio: Healthy\n✅ Credit History: Strong\n✅ Eligibility: APPROVED\n\n⚡ Generating sanction letter...`, 'bot', 'Underwriting Agent');
         updateStepStatus(2, 'completed');
         updateStepStatus(3, 'active');
         setActiveAgent('Sanction Agent');
         
+        addAgentLog('Sanction Agent', '✅ Agent activated - Generating sanction letter', 'success');
+        addAgentLog('Sanction Agent', '📄 Compiling loan terms and conditions...', 'processing');
         setIsTyping(true);
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        addAgentLog('Sanction Agent', '🔐 Applying digital signature...', 'processing');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        addAgentLog('Sanction Agent', '🔒 Encrypting document with 256-bit encryption...', 'processing');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        addAgentLog('Sanction Agent', '✅ Sanction letter generated successfully', 'success');
+        addAgentLog('Sanction Agent', '📤 Ready for customer download', 'success');
         setIsTyping(false);
         
         addMessage(`🎉 Congratulations ${loanData.name}!\n\nYour loan of ₹${parseInt(loanData.amount).toLocaleString('en-IN')} has been APPROVED!\n\n📄 Sanction Letter Generated\n⏱️ Processing Time: <10 minutes\n💳 Disbursal Timeline: 24-48 hours\n🔐 Digitally Signed & Encrypted\n\nYour sanction letter is ready for download. Click the button below to save your official approval document.`, 'bot', 'Sanction Agent');
@@ -274,6 +345,9 @@ const TataCapitalChatbot = () => {
         setShowPdfButton(true);
         setLoanData(prev => ({ ...prev, status: 'approved' }));
         setCurrentStep(6);
+        
+        addAgentLog('Master Agent', '🎉 Workflow complete - Loan approved and sanctioned', 'success');
+        addAgentLog('System', '📊 Updating metrics dashboard...', 'info');
         
         // Update metrics
         setMetrics(prev => ({
@@ -284,14 +358,21 @@ const TataCapitalChatbot = () => {
         }));
       } else {
         // REJECTED SCENARIO
+        addAgentLog('Underwriting Agent', `⚠️ Credit score ${creditScore} below threshold (<700)`, 'warning');
+        addAgentLog('Underwriting Agent', '❌ Eligibility criteria not met', 'error');
+        addAgentLog('Underwriting Agent', '🎯 Decision: LOAN DECLINED', 'error');
+        addAgentLog('Master Agent', '📋 Generating rejection notice with recommendations', 'info');
+        
         addMessage(`📊 Credit Assessment Complete\n\n⚠️ Credit Score: ${creditScore} (Below Threshold)\n❌ Eligibility Status: DECLINED\n\nWe're sorry, but we cannot approve your loan application at this time due to:\n• Credit score below minimum requirement (700)\n• Recent credit inquiries detected\n\n💡 Recommendations:\n1. Improve credit score over next 3-6 months\n2. Clear existing dues\n3. Consider a co-applicant with better credit\n\nWould you like to:\n→ Speak with a loan officer for alternatives\n→ Apply for a smaller loan amount\n→ Get personalized credit improvement tips`, 'bot', 'Underwriting Agent');
         updateStepStatus(2, 'completed');
         updateStepStatus(3, 'pending');
         setLoanData(prev => ({ ...prev, status: 'rejected' }));
         setCurrentStep(6);
+        addAgentLog('Master Agent', '✅ Workflow complete - Application processed', 'info');
       }
     }
     else {
+      addAgentLog('Master Agent', '⚠️ Invalid input detected', 'warning');
       addMessage("I didn't quite catch that. Could you please rephrase or provide the requested information?", 'bot');
     }
   };
@@ -316,7 +397,70 @@ const TataCapitalChatbot = () => {
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-blue-50 to-indigo-100 p-4 overflow-hidden">
       {/* Main Container */}
-      <div className="flex w-full h-full max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden">
+      <div className="flex w-full h-full max-w-7xl mx-auto gap-4">
+        
+        {/* Agent Console - NEW */}
+        {showConsole && (
+          <div className="w-96 bg-gray-900 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-white font-bold flex items-center gap-2">
+                  <Activity size={20} className="animate-pulse" />
+                  Agent Orchestration Console
+                </h3>
+                <p className="text-indigo-200 text-xs mt-1">Real-time AI Decision Flow</p>
+              </div>
+              <button
+                onClick={() => setShowConsole(false)}
+                className="text-white hover:text-indigo-200 text-xl"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 font-mono text-xs">
+              {agentLogs.map((log, index) => (
+                <div key={index} className={`p-2 rounded border-l-4 ${
+                  log.status === 'success' ? 'bg-green-900/30 border-green-500 text-green-300' :
+                  log.status === 'error' ? 'bg-red-900/30 border-red-500 text-red-300' :
+                  log.status === 'warning' ? 'bg-yellow-900/30 border-yellow-500 text-yellow-300' :
+                  log.status === 'processing' ? 'bg-blue-900/30 border-blue-500 text-blue-300' :
+                  log.status === 'routing' ? 'bg-purple-900/30 border-purple-500 text-purple-300' :
+                  'bg-gray-800 border-gray-600 text-gray-300'
+                } animate-fadeIn`}>
+                  <div className="flex items-start gap-2">
+                    <span className="text-gray-500 shrink-0">{log.time}</span>
+                    <div className="flex-1">
+                      <span className="font-semibold">[{log.agent}]</span>
+                      <p className="mt-1">{log.action}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={consoleEndRef} />
+            </div>
+            
+            <div className="bg-gray-800 p-3 border-t border-gray-700">
+              <div className="flex items-center gap-2 text-green-400 text-xs">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span>System Active • Agentic AI Enabled</span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Show Console Button (when hidden) */}
+        {!showConsole && (
+          <button
+            onClick={() => setShowConsole(true)}
+            className="fixed left-4 top-1/2 -translate-y-1/2 bg-gradient-to-b from-purple-600 to-indigo-600 text-white px-3 py-4 rounded-r-xl shadow-lg hover:shadow-xl transition-all z-10 flex flex-col items-center gap-2"
+          >
+            <Activity size={16} />
+            <span className="text-xs font-semibold writing-mode-vertical transform rotate-180">Console</span>
+          </button>
+        )}
+        
+      <div className="flex flex-1 bg-white rounded-2xl shadow-2xl overflow-hidden">
         
         {/* Left Sidebar */}
         <div className="w-80 bg-gradient-to-b from-indigo-600 to-indigo-800 p-6 text-white flex flex-col overflow-y-auto">
@@ -545,6 +689,7 @@ const TataCapitalChatbot = () => {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       <style>{`
